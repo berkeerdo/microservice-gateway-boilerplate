@@ -1,0 +1,18 @@
+{
+  "common": {
+    "internalError": "Beklenmeyen bir hata olustu. Lutfen daha sonra tekrar deneyin.",
+    "success": "Islem basariyla tamamlandi"
+  },
+  "validation": {
+    "failed": "Dogrulama hatasi",
+    "error": "Gecersiz deger"
+  },
+  "auth": {
+    "sessionExpired": "Oturumunuzun suresi doldu. Lutfen tekrar giris yapin.",
+    "invalidToken": "Gecersiz kimlik dogrulama tokeni",
+    "unauthorized": "Kimlik dogrulama gerekli"
+  },
+  "route": {
+    "notFound": "{{method}} {{url}} bulunamadi"
+  }
+}

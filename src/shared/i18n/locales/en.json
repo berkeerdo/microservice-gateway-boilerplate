@@ -1,0 +1,18 @@
+{
+  "common": {
+    "internalError": "An unexpected error occurred. Please try again later.",
+    "success": "Operation completed successfully"
+  },
+  "validation": {
+    "failed": "Validation failed",
+    "error": "Invalid value"
+  },
+  "auth": {
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "invalidToken": "Invalid authentication token",
+    "unauthorized": "Authentication required"
+  },
+  "route": {
+    "notFound": "{{method}} {{url}} not found"
+  }
+}
