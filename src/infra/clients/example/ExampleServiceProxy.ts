@@ -4,7 +4,7 @@
  */
 import { ExampleGrpcClient } from './ExampleGrpcClient.js';
 import type { ExampleRequest, ExampleResponse, ListRequest, ListResponse } from './ExampleGrpcClient.js';
-import type { ServiceHealth, GrpcCallOptions } from '../grpc-types.js';
+import type { GatewayServiceHealth, GatewayCallOptions } from 'grpc-resilient/gateway';
 import logger from '../../logger/logger.js';
 
 export interface ProxyResult<T> {
@@ -30,7 +30,7 @@ export class ExampleServiceProxy {
     logger.info('ExampleServiceProxy closed');
   }
 
-  getHealth(): ServiceHealth {
+  getHealth(): GatewayServiceHealth {
     return this.grpcClient.getHealth();
   }
 
@@ -40,7 +40,7 @@ export class ExampleServiceProxy {
 
   async getById(id: string, locale?: string): Promise<ProxyResult<ExampleResponse>> {
     try {
-      const options: GrpcCallOptions = { locale };
+      const options: GatewayCallOptions = { locale };
       const response = await this.grpcClient.getById({ id }, options);
       return { success: true, data: response };
     } catch (error) {
@@ -52,7 +52,7 @@ export class ExampleServiceProxy {
 
   async list(page?: number, limit?: number, locale?: string): Promise<ProxyResult<ListResponse>> {
     try {
-      const options: GrpcCallOptions = { locale };
+      const options: GatewayCallOptions = { locale };
       const response = await this.grpcClient.list({ page, limit }, options);
       return { success: true, data: response };
     } catch (error) {
@@ -64,7 +64,7 @@ export class ExampleServiceProxy {
 
   async create(request: ExampleRequest, locale?: string): Promise<ProxyResult<ExampleResponse>> {
     try {
-      const options: GrpcCallOptions = { locale };
+      const options: GatewayCallOptions = { locale };
       const response = await this.grpcClient.create(request, options);
       return { success: true, data: response };
     } catch (error) {
@@ -76,7 +76,7 @@ export class ExampleServiceProxy {
 
   async update(request: ExampleRequest, locale?: string): Promise<ProxyResult<ExampleResponse>> {
     try {
-      const options: GrpcCallOptions = { locale };
+      const options: GatewayCallOptions = { locale };
       const response = await this.grpcClient.update(request, options);
       return { success: true, data: response };
     } catch (error) {
@@ -88,7 +88,7 @@ export class ExampleServiceProxy {
 
   async delete(id: string, locale?: string): Promise<ProxyResult<void>> {
     try {
-      const options: GrpcCallOptions = { locale };
+      const options: GatewayCallOptions = { locale };
       await this.grpcClient.delete({ id }, options);
       return { success: true };
     } catch (error) {
