@@ -4,6 +4,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    env: {
+      NODE_ENV: 'test',
+      REDIS_ENABLED: 'false',
+    },
     include: ['tests/**/*.test.ts', 'tests/**/*.spec.ts'],
     coverage: {
       provider: 'v8',
