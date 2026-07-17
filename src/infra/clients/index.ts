@@ -42,8 +42,12 @@ export {
 } from 'grpc-resilient/gateway';
 
 // Example Service (replace with your actual services)
-export { ExampleGrpcClient } from './example/ExampleGrpcClient.js';
-export { ExampleServiceProxy, type ProxyResult } from './example/ExampleServiceProxy.js';
+export {
+  ExampleGrpcClient,
+  type ExampleData,
+  type ResponseEnvelope,
+} from './example/ExampleGrpcClient.js';
+export { ExampleServiceProxy, type ExampleListResult } from './example/ExampleServiceProxy.js';
 
 // Legacy exports for backward compatibility (will be removed in future versions)
 // Use imports from grpc-resilient/gateway instead

@@ -1,26 +1,12 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { ZodError } from 'zod';
-import logger from '../../infra/logger/logger.js';
+import type { ZodError } from 'zod';
 
 /**
- * Register validation error handler for Zod schema validation
- */
-export function registerValidationErrorHandler(fastify: FastifyInstance): void {
-  fastify.setSchemaErrorFormatter((errors, dataVar) => {
-    logger.debug({ errors, dataVar }, 'Schema validation error');
-
-    const formattedErrors = errors.map((err) => ({
-      field: err.instancePath || dataVar,
-      message: err.message || 'Validation failed',
-      keyword: err.keyword,
-    }));
-
-    return new Error(JSON.stringify(formattedErrors));
-  });
-}
-
-/**
- * Format Zod validation errors into a consistent structure
+ * Format Zod validation errors into a consistent structure.
+ *
+ * Note: request validation itself is handled by fastify-type-provider-zod's
+ * validatorCompiler (see server.ts); failed validations carry `.validation`
+ * and are rendered by the global error handler. No ajv schema error
+ * formatter is needed (and the previous one produced opaque 500s).
  */
 export function formatZodErrors(error: ZodError): { field: string; message: string }[] {
   return error.issues.map((issue) => ({

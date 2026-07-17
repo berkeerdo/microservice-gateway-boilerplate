@@ -18,7 +18,7 @@ export class AppError extends Error {
   public readonly isOperational: boolean;
 
   constructor(
-    public readonly message: string,
+    public override readonly message: string,
     public readonly statusCode = 500,
     public readonly code = 'INTERNAL_ERROR',
     public readonly details?: ErrorDetails | ErrorDetails[]
@@ -116,6 +116,9 @@ export class TimeoutError extends AppError {
 export class ExternalServiceError extends AppError {
   constructor(service: string, message: string, details?: ErrorDetails) {
     const formattedMessage = service ? `${service}: ${message}` : message;
-    super(formattedMessage, 502, 'EXTERNAL_SERVICE_ERROR', { service: service || undefined, ...details });
+    super(formattedMessage, 502, 'EXTERNAL_SERVICE_ERROR', {
+      service: service || undefined,
+      ...details,
+    });
   }
 }

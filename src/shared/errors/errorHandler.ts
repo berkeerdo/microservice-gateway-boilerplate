@@ -118,7 +118,15 @@ function handleZodError(error: ZodError, ctx: ErrorContext): void {
   });
   void ctx.reply
     .status(HttpStatus.BAD_REQUEST)
-    .send(createErrorResponse('VALIDATION_ERROR', message, HttpStatus.BAD_REQUEST, ctx.requestId, details));
+    .send(
+      createErrorResponse(
+        'VALIDATION_ERROR',
+        message,
+        HttpStatus.BAD_REQUEST,
+        ctx.requestId,
+        details
+      )
+    );
 }
 
 function handleFastifyValidationError(error: FastifyError, ctx: ErrorContext): void {
@@ -131,7 +139,15 @@ function handleFastifyValidationError(error: FastifyError, ctx: ErrorContext): v
   });
   void ctx.reply
     .status(HttpStatus.BAD_REQUEST)
-    .send(createErrorResponse('VALIDATION_ERROR', message, HttpStatus.BAD_REQUEST, ctx.requestId, error.validation));
+    .send(
+      createErrorResponse(
+        'VALIDATION_ERROR',
+        message,
+        HttpStatus.BAD_REQUEST,
+        ctx.requestId,
+        error.validation
+      )
+    );
 }
 
 function handleJwtError(error: Error, ctx: ErrorContext): void {
@@ -147,7 +163,9 @@ function handleJwtError(error: Error, ctx: ErrorContext): void {
   });
   void ctx.reply
     .status(HttpStatus.UNAUTHORIZED)
-    .send(createErrorResponse('AUTHENTICATION_ERROR', message, HttpStatus.UNAUTHORIZED, ctx.requestId));
+    .send(
+      createErrorResponse('AUTHENTICATION_ERROR', message, HttpStatus.UNAUTHORIZED, ctx.requestId)
+    );
 }
 
 function handleUnknownError(error: Error, ctx: ErrorContext, request: FastifyRequest): void {
@@ -168,7 +186,14 @@ function handleUnknownError(error: Error, ctx: ErrorContext, request: FastifyReq
   const message = isDev ? error.message : t('common.internalError', ctx.locale);
   void ctx.reply
     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-    .send(createErrorResponse('INTERNAL_ERROR', message, HttpStatus.INTERNAL_SERVER_ERROR, ctx.requestId));
+    .send(
+      createErrorResponse(
+        'INTERNAL_ERROR',
+        message,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        ctx.requestId
+      )
+    );
 }
 
 /**
@@ -180,7 +205,10 @@ export function errorHandler(
   reply: FastifyReply
 ): void {
   const requestId = request.id;
-  const correlationId = (request.headers['x-correlation-id'] as string) || requestId;
+  // Single source of truth: the correlationId middleware already resolved
+  // (or generated) the id; only fall back to headers when it did not run
+  const correlationId =
+    request.correlationId || (request.headers['x-correlation-id'] as string) || requestId;
   const locale = getLocaleFromRequest(request);
   const ctx: ErrorContext = { requestId, correlationId, locale, reply };
 

@@ -82,7 +82,8 @@ class GracefulShutdownManager {
   }
 
   setupSignalHandlers(): void {
-    const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGUSR2'];
+    // SIGUSR2 is deliberately NOT handled: tsx/nodemon use it for restarts
+    const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
 
     for (const signal of signals) {
       process.on(signal, () => {

@@ -8,6 +8,8 @@ export {
 
 export { registerRequestLogger } from './requestLogger.js';
 
+export { registerRequestMetrics } from './requestMetrics.js';
+
 export { registerRateLimiter, getAuthRateLimitConfig } from './rateLimiter.js';
 
 export {
@@ -23,4 +25,4 @@ export {
   type AuthenticatedUser,
 } from './grpcAuth.js';
 
-export { registerValidationErrorHandler, formatZodErrors } from './validationErrorHandler.js';
+export { formatZodErrors } from './validationErrorHandler.js';

@@ -17,16 +17,22 @@ const RATE_LIMITS = {
   api: { max: config.RATE_LIMIT_MAX, timeWindow: config.RATE_LIMIT_WINDOW_MS },
 };
 
-function rateLimitKeyGenerator(request: FastifyRequest): string {
+export function rateLimitKeyGenerator(request: FastifyRequest): string {
+  // Key by authenticated user, otherwise by client IP (trustProxy resolves it).
+  // NEVER key by correlation/request id headers: they are client-controlled,
+  // and rotating them per request would bypass the limiter entirely.
   const userId = (request as FastifyRequest & { userId?: string }).userId;
   if (userId) {
     return `user:${userId}`;
   }
-  return (request as FastifyRequest & { correlationId?: string }).correlationId || request.ip;
+  return request.ip;
 }
 
+// Probe/observability endpoints must not consume rate-limit budget
+const RATE_LIMIT_EXEMPT_PATHS = new Set(['/', '/health', '/ready', '/status', '/metrics']);
+
 function isRateLimitAllowed(request: FastifyRequest): boolean {
-  return request.url === '/health' || request.url === '/ready' || request.url === '/';
+  return RATE_LIMIT_EXEMPT_PATHS.has(request.url);
 }
 
 function buildRateLimitErrorResponse(
@@ -34,11 +40,7 @@ function buildRateLimitErrorResponse(
   context: { max: number; ttl: number }
 ): RateLimitError {
   const userId = (request as FastifyRequest & { userId?: string }).userId;
-  const keyType: 'user' | 'ip' | 'correlation_id' = userId
-    ? 'user'
-    : (request as FastifyRequest & { correlationId?: string }).correlationId
-      ? 'correlation_id'
-      : 'ip';
+  const keyType: 'user' | 'ip' = userId ? 'user' : 'ip';
 
   metrics.recordRateLimitHit(keyType, request.url);
 
@@ -62,13 +64,28 @@ function buildRateLimitErrorResponse(
 }
 
 export async function registerRateLimiter(fastify: FastifyInstance): Promise<void> {
-  const redisClient = getRedisClient();
+  // Only use Redis when the connection is actually established
+  // (initializeRedis runs before createServer). A dead Redis store would
+  // otherwise turn every request into a 500 instead of falling back.
+  const client = getRedisClient();
+  const redisClient =
+    client && (client.status === 'ready' || client.status === 'connecting') ? client : null;
+
+  if (client && !redisClient) {
+    logger.warn(
+      { status: client.status },
+      'Redis not connected - rate limiter falling back to in-memory store'
+    );
+  }
 
   interface RateLimitOptions {
     max: number;
     timeWindow: number;
     keyGenerator: (request: FastifyRequest) => string;
-    errorResponseBuilder: (request: FastifyRequest, context: { max: number; ttl: number }) => RateLimitError;
+    errorResponseBuilder: (
+      request: FastifyRequest,
+      context: { max: number; ttl: number }
+    ) => RateLimitError;
     addHeaders: Record<string, boolean>;
     allowList: (request: FastifyRequest) => boolean;
     redis?: ReturnType<typeof getRedisClient>;

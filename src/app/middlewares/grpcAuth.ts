@@ -1,14 +1,20 @@
 /**
- * gRPC-based Authentication Middleware
+ * Authentication Middleware
  *
- * This is a template - customize based on your auth service implementation
+ * Verifies JWTs locally via @fastify/jwt (JWT_SECRET must be set).
+ * Attach to routes as a preHandler:
+ *
+ *   fastify.get('/private', { preHandler: [fastify.authenticateGrpc] }, handler)
+ *
+ * For remote validation against an auth service, replace the local
+ * verification inside authenticateGrpc with a gRPC ValidateToken call.
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
-import { container } from '../../container.js';
+import jwt from '@fastify/jwt';
+import config from '../../config/env.js';
 import { UnauthorizedError } from '../../shared/errors/AppError.js';
 import logger from '../../infra/logger/logger.js';
 import { metrics } from '../../infra/monitoring/metrics.js';
-import type { ExampleServiceProxy } from '../../infra/clients/example/ExampleServiceProxy.js';
 
 export interface AuthenticatedUser {
   id: number;
@@ -17,10 +23,19 @@ export interface AuthenticatedUser {
   lastName: string;
 }
 
+export interface JwtPayload {
+  sub?: string | number;
+  userId?: string | number;
+  email?: string;
+  [key: string]: unknown;
+}
+
 declare module 'fastify' {
   interface FastifyRequest {
     grpcUser?: AuthenticatedUser;
     accessToken?: string;
+    /** Set after successful authentication; used for per-user rate limiting */
+    userId?: string;
   }
 }
 
@@ -37,7 +52,7 @@ export function getAccessTokenFromCookie(request: FastifyRequest): string | null
   if (!cookies) {
     return null;
   }
-  return cookies['access_token'] || null;
+  return cookies.access_token || null;
 }
 
 export const requireBearerToken = async (
@@ -58,21 +73,24 @@ export function getAccessToken(request: FastifyRequest): string {
   return request.accessToken;
 }
 
+function verifyToken(request: FastifyRequest, token: string): JwtPayload {
+  // Throws on invalid signature, expiry, or issuer mismatch
+  return request.server.jwt.verify<JwtPayload>(token);
+}
+
 /**
- * Authenticate request via gRPC token validation
- * NOTE: This is a template - implement your actual auth logic
+ * Authenticate the request by verifying the JWT (cookie or bearer header).
+ * Rejects when no token is present, the token is invalid, or JWT_SECRET
+ * is not configured - it NEVER passes an unvalidated token through.
  */
 export const authenticateGrpc = async (
   request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> => {
-  // Get proxy from DI container
-  const _exampleProxy = container.resolve<ExampleServiceProxy>('exampleServiceProxy');
-
   const cookieToken = getAccessTokenFromCookie(request);
   const headerToken = extractBearerToken(request.headers.authorization);
   const token = cookieToken || headerToken;
-  const tokenSource: 'cookie' | 'header' | 'query' = cookieToken ? 'cookie' : 'header';
+  const tokenSource: 'cookie' | 'header' = cookieToken ? 'cookie' : 'header';
 
   if (!token) {
     metrics.recordAuthFailure('TOKEN_MISSING', request.url);
@@ -85,47 +103,75 @@ export const authenticateGrpc = async (
     throw new UnauthorizedError('Authentication required');
   }
 
-  // TODO: Implement your actual token validation logic here
-  // Example:
-  // const validation = await authProxy.validateToken(token);
-  // if (!validation.success) { throw new UnauthorizedError('Invalid token'); }
-  // request.grpcUser = transformUser(validation.data.user);
+  if (!config.JWT_SECRET) {
+    metrics.recordAuthFailure('JWT_NOT_CONFIGURED', request.url);
+    logger.error('authenticateGrpc used without JWT_SECRET configured');
+    throw new UnauthorizedError('Authentication is not configured');
+  }
 
-  // For now, just store the token
-  request.accessToken = token;
-  metrics.recordTokenValidation('success', tokenSource);
+  try {
+    const payload = verifyToken(request, token);
+    request.accessToken = token;
+    const subject = payload.sub ?? payload.userId;
+    if (subject !== undefined) {
+      request.userId = String(subject);
+    }
+    metrics.recordTokenValidation('success', tokenSource);
+  } catch (error) {
+    metrics.recordAuthFailure('TOKEN_INVALID', request.url);
+    metrics.recordTokenValidation('failure', tokenSource);
+    logger.warn(
+      { correlationId: request.correlationId, path: request.url, err: error },
+      'Token verification failed'
+    );
+    throw new UnauthorizedError('Invalid or expired token');
+  }
 };
 
 /**
- * Optional authentication - doesn't throw if no token
+ * Optional authentication - verifies the token when present, but never throws
  */
 export const authenticateGrpcOptional = async (
   request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> => {
-  const token =
-    getAccessTokenFromCookie(request) || extractBearerToken(request.headers.authorization);
+  const cookieToken = getAccessTokenFromCookie(request);
+  const token = cookieToken || extractBearerToken(request.headers.authorization);
 
-  if (!token) {
+  if (!token || !config.JWT_SECRET) {
     return;
   }
 
   try {
-    // TODO: Implement your actual token validation logic here
+    const payload = verifyToken(request, token);
     request.accessToken = token;
+    const subject = payload.sub ?? payload.userId;
+    if (subject !== undefined) {
+      request.userId = String(subject);
+    }
   } catch (error) {
     logger.debug(
-      { correlationId: request.correlationId, error },
+      { correlationId: request.correlationId, err: error },
       'Optional auth: token validation failed'
     );
   }
 };
 
-export function registerGrpcAuth(fastify: FastifyInstance): void {
+export async function registerGrpcAuth(fastify: FastifyInstance): Promise<void> {
+  if (config.JWT_SECRET) {
+    await fastify.register(jwt, {
+      secret: config.JWT_SECRET,
+      verify: { allowedIss: config.JWT_ISSUER },
+    });
+    logger.info('JWT verification enabled (@fastify/jwt)');
+  } else {
+    logger.warn('JWT_SECRET not set - authenticateGrpc will reject all requests');
+  }
+
   fastify.decorate('authenticateGrpc', authenticateGrpc);
   fastify.decorate('authenticateGrpcOptional', authenticateGrpcOptional);
 
-  logger.info('gRPC authentication middleware registered');
+  logger.info('Authentication middleware registered');
 }
 
 declare module 'fastify' {
