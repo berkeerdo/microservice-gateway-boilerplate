@@ -5,15 +5,16 @@ Production-ready API Gateway boilerplate with Fastify and gRPC.
 ## Features
 
 - **Fastify 5** - High-performance web framework
-- **gRPC Clients** - Resilient gRPC clients with retry, circuit breaker, and auto-reconnect
+- **gRPC Clients** - Resilient gRPC clients (grpc-resilient) with retry and auto-reconnect; non-idempotent calls are never auto-retried
 - **Awilix DI** - Dependency injection with PROXY mode
-- **Zod Validation** - Type-safe request validation
+- **Zod v4 Validation** - fastify-type-provider-zod: schemas validate, type AND document routes
 - **Pino Logging** - Structured logging with redaction
 - **Redis Rate Limiting** - Distributed rate limiting
 - **OpenTelemetry** - Distributed tracing
 - **Sentry** - Error tracking and performance monitoring
 - **Prometheus Metrics** - Application metrics
 - **i18n** - Internationalization support (EN, TR)
+- **Load Shedding** - @fastify/under-pressure returns 503 + Retry-After under saturation
 - **Graceful Shutdown** - Clean resource cleanup
 - **TypeScript** - Full type safety
 
@@ -28,6 +29,10 @@ cp .env.example .env
 
 # Start development server
 npm run dev
+
+# Pairs with berkeerdo/microservice-boilerplate as the downstream:
+# run it with GRPC_ENABLED=true (gRPC on :50051) and the /examples
+# routes work end-to-end out of the box
 
 # Build for production
 npm run build
@@ -51,7 +56,6 @@ src/
 │   ├── logger/           # Logging
 │   ├── monitoring/       # Metrics, Sentry, Tracing
 │   ├── redis/            # Redis client
-│   ├── resilience/       # Circuit breaker
 │   └── shutdown/         # Graceful shutdown
 ├── shared/
 │   ├── errors/           # Error classes & handler
@@ -123,12 +127,11 @@ All configuration is done via environment variables. See `.env.example` for avai
 ## Scripts
 
 ```bash
-npm run dev          # Development with hot reload
-npm run dev:otel     # Development with OpenTelemetry
+npm run dev          # Development with hot reload (observability preloaded)
 npm run build        # Build for production
-npm start            # Production server
-npm run start:otel   # Production with OpenTelemetry
-npm test             # Run tests
+npm start            # Production server (observability preloaded)
+npm test             # Run tests once
+npm run test:watch   # Run tests in watch mode
 npm run lint         # ESLint check
 npm run lint:fix     # ESLint fix
 npm run typecheck    # TypeScript check
@@ -139,7 +142,6 @@ npm run typecheck    # TypeScript check
 - **Lazy Connection** - Connects on first call
 - **Auto-Reconnect** - Reconnects on connection loss
 - **Retry with Backoff** - Exponential backoff with jitter
-- **Circuit Breaker** - Prevents cascade failures
 - **Metrics** - Success/failure/latency tracking
 - **TLS/mTLS Support** - Secure connections
 
