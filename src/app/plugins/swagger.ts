@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import config from '../../config/env.js';
 import logger from '../../infra/logger/logger.js';
 
@@ -44,6 +45,8 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
         { name: 'Example', description: 'Example service endpoints' },
       ],
     },
+    // Converts zod route schemas (fastify-type-provider-zod) to OpenAPI
+    transform: jsonSchemaTransform,
   });
 
   await fastify.register(swaggerUi, {

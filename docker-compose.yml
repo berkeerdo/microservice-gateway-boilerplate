@@ -1,0 +1,58 @@
+# Production compose for Gateway Boilerplate
+# Requires .env file in same directory
+# Downstream gRPC services + Redis are reachable via env-configured hosts
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gateway-boilerplate:latest
+    container_name: gateway-boilerplate
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    ports:
+      # Bind to loopback only - expose publicly via a reverse proxy (nginx, Traefik)
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  redis_data:

@@ -62,7 +62,17 @@ function tracesSampler(samplingContext: SamplingContext): number {
   return getDefaultSampleRate();
 }
 
-export function initializeSentry(): void {
+export interface InitializeSentryOptions {
+  /**
+   * Set to true when the application runs its own OpenTelemetry NodeSDK
+   * (see src/instrumentation.ts). Sentry then skips its internal OTel setup
+   * and its sampler/processor/propagator are wired into the app's SDK instead.
+   * @see https://docs.sentry.io/platforms/javascript/guides/node/opentelemetry/custom-setup/
+   */
+  skipOpenTelemetrySetup?: boolean;
+}
+
+export function initializeSentry(options: InitializeSentryOptions = {}): void {
   if (!config.SENTRY_DSN) {
     logger.info('Sentry DSN not configured, error tracking disabled');
     return;
@@ -82,6 +92,9 @@ export function initializeSentry(): void {
     tracesSampler,
     profilesSampleRate: effectiveSampleRate,
     enabled: config.NODE_ENV !== 'test',
+
+    // When the app owns the OTel SDK, Sentry must not install a second one
+    skipOpenTelemetrySetup: options.skipOpenTelemetrySetup ?? false,
     integrations: [
       Sentry.captureConsoleIntegration({ levels: ['error', 'warn'] }),
       Sentry.httpIntegration({ spans: true }),
@@ -106,7 +119,9 @@ export function initializeSentry(): void {
   });
 
   isInitialized = true;
-  logger.info(`Sentry initialized (env: ${config.NODE_ENV}, traces: ${effectiveSampleRate * 100}%)`);
+  logger.info(
+    `Sentry initialized (env: ${config.NODE_ENV}, traces: ${effectiveSampleRate * 100}%)`
+  );
 }
 
 export function captureException(error: Error, context?: Record<string, unknown>): string {

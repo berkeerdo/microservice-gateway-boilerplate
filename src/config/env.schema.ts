@@ -35,7 +35,6 @@ export const envSchema = z.object({
   // ============================================
   // Example Service - Replace with your actual services
   EXAMPLE_SERVICE_GRPC_URL: z.string().default('localhost:50051'),
-  EXAMPLE_SERVICE_HTTP_URL: z.string().url().optional(),
 
   // ============================================
   // gRPC CLIENT SETTINGS
@@ -51,18 +50,16 @@ export const envSchema = z.object({
   GRPC_KEEPALIVE_TIMEOUT_MS: z.number().int().positive().default(5000),
 
   // ============================================
-  // CIRCUIT BREAKER SETTINGS
+  // HTTP SERVER HARDENING
   // ============================================
-  CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.number().int().positive().default(5),
-  CIRCUIT_BREAKER_RESET_TIMEOUT_MS: z.number().int().positive().default(30000),
-  CIRCUIT_BREAKER_HALF_OPEN_SUCCESS_THRESHOLD: z.number().int().positive().default(3),
-  CIRCUIT_BREAKER_FAILURE_WINDOW_MS: z.number().int().positive().default(60000),
+  // End-to-end request timeout; keep BELOW the load balancer's timeout
+  REQUEST_TIMEOUT_MS: z.number().int().positive().default(30000),
 
-  // ============================================
-  // HTTP FALLBACK SETTINGS
-  // ============================================
-  HTTP_FALLBACK_ENABLED: z.boolean().default(true),
-  HTTP_FALLBACK_TIMEOUT_MS: z.number().int().positive().default(10000),
+  // Load shedding (@fastify/under-pressure); 0 disables a check
+  BACKPRESSURE_MAX_EVENT_LOOP_DELAY: z.number().int().min(0).default(1000),
+  BACKPRESSURE_MAX_HEAP_USED_BYTES: z.number().int().min(0).default(0),
+  BACKPRESSURE_MAX_RSS_BYTES: z.number().int().min(0).default(0),
+  BACKPRESSURE_RETRY_AFTER: z.number().int().positive().default(10),
 
   // ============================================
   // REDIS
@@ -76,10 +73,10 @@ export const envSchema = z.object({
   // OBSERVABILITY
   // ============================================
   OTEL_ENABLED: z.boolean().default(false),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
   OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(),
 
-  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_DSN: z.url().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.number().min(0).max(1).optional(),
 

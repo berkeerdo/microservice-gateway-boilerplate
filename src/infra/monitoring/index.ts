@@ -9,4 +9,3 @@ export {
   flushSentry,
   closeSentry,
 } from './sentry.js';
-export { shutdownTracing } from './tracing.js';

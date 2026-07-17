@@ -110,7 +110,12 @@ export const metrics = {
     httpRequestDuration.observe(labels, durationMs / 1000);
   },
 
-  recordGrpcCall(service: string, method: string, status: 'success' | 'error', durationMs: number): void {
+  recordGrpcCall(
+    service: string,
+    method: string,
+    status: 'success' | 'error',
+    durationMs: number
+  ): void {
     const labels = { service, method, status };
     grpcCallsTotal.inc(labels);
     grpcCallDuration.observe(labels, durationMs / 1000);

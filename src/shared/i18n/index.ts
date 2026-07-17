@@ -13,12 +13,14 @@ import trLocale from './locales/tr.json' with { type: 'json' };
 
 export * from './types.js';
 
-type NestedTranslation = { [key: string]: string | NestedTranslation };
+interface NestedTranslation {
+  [key: string]: string | NestedTranslation;
+}
 type TranslationData = NestedTranslation;
 
 const TRANSLATIONS: Record<SupportedLocale, TranslationData> = {
-  en: enLocale as TranslationData,
-  tr: trLocale as TranslationData,
+  en: enLocale,
+  tr: trLocale,
 };
 
 function getTranslations(locale: SupportedLocale): TranslationData {
@@ -63,7 +65,7 @@ function interpolate(text: string, params?: TranslationParams): string {
   }
 
   return text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
-    const value = safeGet(params as Record<string, unknown>, key);
+    const value = safeGet(params, key);
     if (value === undefined) {
       return `{{${key}}}`;
     }

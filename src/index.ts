@@ -3,20 +3,22 @@
  * Production-ready API Gateway with Fastify and gRPC
  */
 
-// Load environment variables FIRST
-import dotenv from 'dotenv';
-dotenv.config();
-
-// OpenTelemetry is initialized via --import flag in package.json
-import { shutdownTracing } from './infra/monitoring/tracing.js';
+// Observability bootstrap: normally preloaded via `node --import ./dist/instrumentation.js`.
+// Importing it first here is a fallback so Sentry/OTel still initialize (with reduced
+// ESM auto-instrumentation coverage) if the process is started without the preload flag.
+import { shutdownTracing } from './instrumentation.js';
 
 // Application imports
 import { createServer } from './app/server.js';
-import { registerDependencies, initializeServiceProxies, closeServiceProxies } from './container.js';
+import {
+  registerDependencies,
+  initializeServiceProxies,
+  closeServiceProxies,
+} from './container.js';
 import config from './config/env.js';
 import logger from './infra/logger/logger.js';
 import { gracefulShutdown } from './infra/shutdown/gracefulShutdown.js';
-import { initializeSentry, flushSentry, closeSentry } from './infra/monitoring/sentry.js';
+import { flushSentry, closeSentry } from './infra/monitoring/sentry.js';
 import { initializeRedis, closeRedis } from './infra/redis/redis.js';
 
 function logStartup(): void {
@@ -40,7 +42,7 @@ function registerShutdownHandlers(): void {
 }
 
 async function initializeInfrastructure(): Promise<void> {
-  initializeSentry();
+  // Sentry + OpenTelemetry are already initialized in the instrumentation.ts preload
   gracefulShutdown.setupSignalHandlers();
   registerShutdownHandlers();
   await initializeRedis();

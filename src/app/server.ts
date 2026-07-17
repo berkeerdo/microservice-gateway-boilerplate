@@ -3,16 +3,18 @@ import Fastify from 'fastify';
 import helmet, { type FastifyHelmetOptions } from '@fastify/helmet';
 import cors, { type FastifyCorsOptions } from '@fastify/cors';
 import cookie from '@fastify/cookie';
+import underPressure from '@fastify/under-pressure';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { stdTimeFunctions } from 'pino';
 import config from '../config/env.js';
-import { errorHandler } from '../shared/errors/errorHandler.js';
+import { errorHandler, notFoundHandler } from '../shared/errors/errorHandler.js';
 import { registerRoutes } from './routes/index.js';
 import {
   registerCorrelationId,
   registerRateLimiter,
   registerRequestLogger,
+  registerRequestMetrics,
   registerGrpcAuth,
-  registerValidationErrorHandler,
 } from './middlewares/index.js';
 import { registerSwagger } from './plugins/index.js';
 import { gracefulShutdown } from '../infra/shutdown/gracefulShutdown.js';
@@ -40,7 +42,10 @@ function parseTrustProxy(value: string): boolean | number | string | string[] {
   return value.includes(',') ? value.split(',').map((ip) => ip.trim()) : value.trim();
 }
 
-function createLoggerConfig(isDevelopment: boolean, isTest: boolean): FastifyServerOptions['logger'] {
+function createLoggerConfig(
+  isDevelopment: boolean,
+  isTest: boolean
+): FastifyServerOptions['logger'] {
   if (isTest) {
     return false;
   }
@@ -151,7 +156,10 @@ function getCorsConfig(allowedOrigins: string[]): FastifyCorsOptions {
   };
 }
 
-async function registerSecurityPlugins(fastify: FastifyInstance, isDevelopment: boolean): Promise<void> {
+async function registerSecurityPlugins(
+  fastify: FastifyInstance,
+  isDevelopment: boolean
+): Promise<void> {
   await fastify.register(helmet, getHelmetConfig(isDevelopment));
 
   const allowedOrigins = getAllowedOrigins(isDevelopment);
@@ -160,15 +168,23 @@ async function registerSecurityPlugins(fastify: FastifyInstance, isDevelopment: 
   }
 
   await fastify.register(cors, getCorsConfig(allowedOrigins));
-  await fastify.register(cookie);
+  await fastify.register(cookie, {
+    parseOptions: {
+      domain: config.COOKIE_DOMAIN,
+      secure: config.COOKIE_SECURE,
+      sameSite: config.COOKIE_SAME_SITE,
+      httpOnly: true,
+      path: '/',
+    },
+  });
 }
 
 async function registerMiddlewares(fastify: FastifyInstance): Promise<void> {
   registerCorrelationId(fastify);
   registerRequestLogger(fastify);
+  registerRequestMetrics(fastify);
   await registerRateLimiter(fastify);
-  registerGrpcAuth(fastify);
-  registerValidationErrorHandler(fastify);
+  await registerGrpcAuth(fastify);
 }
 
 export async function createServer(): Promise<FastifyInstance> {
@@ -179,6 +195,25 @@ export async function createServer(): Promise<FastifyInstance> {
     logger: createLoggerConfig(isDevelopment, isTest),
     bodyLimit: 1048576, // 1MB
     trustProxy: parseTrustProxy(config.TRUST_PROXY),
+    // Bound slow clients and upstream stalls. Fastify's keepAliveTimeout
+    // default (72s) is deliberately above common LB idle timeouts (60s) -
+    // keep app keep-alive ABOVE the LB's, and requestTimeout BELOW it.
+    requestTimeout: config.REQUEST_TIMEOUT_MS,
+    connectionTimeout: 0,
+  });
+
+  // Zod-powered validation and serialization (fastify-type-provider-zod)
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+
+  // Load shedding: reply 503 + Retry-After when the event loop or memory
+  // is saturated, instead of queueing requests until everything times out
+  await fastify.register(underPressure, {
+    maxEventLoopDelay: config.BACKPRESSURE_MAX_EVENT_LOOP_DELAY,
+    maxHeapUsedBytes: config.BACKPRESSURE_MAX_HEAP_USED_BYTES,
+    maxRssBytes: config.BACKPRESSURE_MAX_RSS_BYTES,
+    message: 'Service overloaded, retry shortly',
+    retryAfter: config.BACKPRESSURE_RETRY_AFTER,
   });
 
   await registerSecurityPlugins(fastify, isDevelopment);
@@ -187,6 +222,7 @@ export async function createServer(): Promise<FastifyInstance> {
 
   registerRoutes(fastify);
   fastify.setErrorHandler(errorHandler);
+  fastify.setNotFoundHandler(notFoundHandler);
   gracefulShutdown.registerFastify(fastify);
 
   logger.info(
